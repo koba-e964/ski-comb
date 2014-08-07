@@ -87,6 +87,11 @@ eliminate env v l@(L2Comb name)
 eliminate _   v (L2Name x)
     | v == x = L2Comb "I"
     | otherwise = L2App (L2Comb "K") (L2Name x)
+eliminate env v (L2App x (L2Name name)) | name == v && isConstant x -- special case
+  = x where
+    isConstant (L2Comb _) = True
+    isConstant (L2Name _) = False
+    isConstant (L2App a b) = isConstant a || isConstant b
 eliminate env v (L2App x y) = L2App (L2Comb "S" `L2App` eliminate env v x) (eliminate env v y)
 
 eliminateAll :: Env -> [String] -> LExpr2 -> LExpr2
