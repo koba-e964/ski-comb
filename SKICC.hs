@@ -6,6 +6,8 @@ import Control.Monad.State
 import Data.List (foldl', union)
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Maybe (fromMaybe)
+import Debug.Trace
 
 type Env = Map String ([String], LExpr2) -- pair of bound variables and expression
 
@@ -21,6 +23,8 @@ data LExpr2 =
   | L2Name String
   | L2App LExpr2 LExpr2
 
+infixl 2 `L2App`
+
 instance Show LExpr2 where
   show (L2Comb str) = "@" ++ str
   show (L2Name str) = str
@@ -28,7 +32,10 @@ instance Show LExpr2 where
 
 -- reference : http://www.tatapa.org/~takuo/kotori_ski/
 compile :: LExpr -> Expr
-compile z = undefined
+compile z = let
+  (l2, env) = runM $ convertToLExpr2 z
+  in
+  convertToSKI env l2
 
 
 newCombName :: M String
@@ -64,3 +71,34 @@ variables (LName x) = ([x])
 variables (LApp x y) = variables x `union` variables y
 variables (LAbst v expr) = remove v (variables expr)
 
+-- | eliminate y expr eliminates y in expr
+-- example:
+-- elimination of y from...
+--   x ====> K x
+--   y ====> I
+--   x y =====> S (K x) I
+
+eliminate :: Env -> String -> LExpr2 -> LExpr2
+eliminate env v l@(L2Comb name)
+  | Map.member name env = let
+      (var, expr) = fromMaybe (error $ "no such combinator: " ++ name) $ Map.lookup name env
+    in L2App (L2Comb "K") $ eliminateAll env var expr
+  | otherwise           = L2App (L2Comb "K") l
+eliminate _   v (L2Name x)
+    | v == x = L2Comb "I"
+    | otherwise = L2App (L2Comb "K") (L2Name x)
+eliminate env v (L2App x y) = L2App (L2Comb "S" `L2App` eliminate env v x) (eliminate env v y)
+
+eliminateAll :: Env -> [String] -> LExpr2 -> LExpr2
+eliminateAll env vs expr = foldr (eliminate env) expr vs 
+
+convertToSKI :: Env -> LExpr2 -> Expr
+convertToSKI env (L2App x y) = convertToSKI env x :*: convertToSKI env y
+convertToSKI _ (L2Comb "S") = S
+convertToSKI _ (L2Comb "K") = K
+convertToSKI _ (L2Comb "I") = I
+convertToSKI env (L2Comb name)
+  |  Map.member name env = let
+      (var, expr) = fromMaybe (error "(>_<)") $ Map.lookup name env
+    in convertToSKI env $ eliminateAll env var expr
+convertToSKI _ x            = error $ "invalid expr :" ++ show x
