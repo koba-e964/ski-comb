@@ -12,6 +12,8 @@ evalFully e
 evaluable :: Expr -> Bool
 evaluable (S :*: _ :*: _ :*: _) = True
 evaluable (S :*: K :*: _) = True
+evaluable (S :*: (K :*: I)) = True
+evaluable (S :*: (K :*: _) :*: I) = True
 evaluable (K :*: _ :*: _) = True
 evaluable (I :*: _) = True
 evaluable (x :*: y) = evaluable x || evaluable y
@@ -20,6 +22,8 @@ evaluable _ = False
 eval :: Expr -> Expr
 eval (S :*: x :*: y :*: z) = (x :*: z) :*: (y :*: z)
 eval (S :*: K) = K :*: I
+eval (S :*: (K :*: I)) = I
+eval (S :*: (K :*: m) :*: I) = m
 eval (K :*: x :*: _) = x
 eval (I :*: x) = x
 eval (x :*: y) = eval x :*: eval y

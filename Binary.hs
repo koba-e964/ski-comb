@@ -5,10 +5,16 @@ import qualified Data.ByteString as ByteString
 import Data.ByteString (append, singleton, ByteString)
 
 size :: Expr -> Int
+depth :: Expr -> Int
+
 size K = 1
 size S = 1
 size I = 1
-size (x :*: y) = max (size x) (size y) + 1 
+size (x :*: y) = size x + size y
+depth K = 1
+depth S = 1
+depth I = 1
+depth (x :*: y) = max (size x) (size y) + 1
 
 pack :: Expr -> ByteString
 
