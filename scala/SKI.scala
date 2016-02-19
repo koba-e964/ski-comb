@@ -44,13 +44,25 @@ object SKI {
     }
     v
   }
+  def comp: Expr = EApp(S, EApp(EApp(K, S), K))
+  def churchInt(v: Int): Expr = v match {
+    case 0 => EApp(S, K)
+    case _ if v < 0 => K // undefined
+    case _ => EApp(churchSucc, churchInt(v - 1))
+  }
+  def churchSucc: Expr = EApp(S, EApp(EApp(S, EApp(K, S)), K))
 }
 object SKITest {
   import SKI._
   def main(args: Array[String]) {
     val omega = EApp(EApp(S, I), I)
     val omegaI = EApp(omega, I)
+    val omegaX = EApp(omega, EVar("x"))
     println("omega id = " + omegaI)
     println("->^\\beta " + evaluate(omegaI))
+    println("omega x = " + omegaX)
+    println("->^\\beta " + evaluate(omegaX))
+    val churchTwo = churchInt(2)
+    println("2 f x --> " + evaluate(EApp(EApp(churchTwo, EVar("f")), EVar("x"))))
   }
 }

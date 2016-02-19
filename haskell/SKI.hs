@@ -40,21 +40,19 @@ evalTimes n x
 comp :: Expr
 comp = S :*: (K :*: S) :*: K
 
+-- Usual Church encoding. n |-> \f x. f^n x
 seInt :: Int -> Expr
 
-seInt 0 = K
+seInt 0 = S :*: K
 seInt n
   | n < 0 = undefined
-  | otherwise = K :*: (S :*: I :*: (K :*: seInt (n-1)))
+  | otherwise = SKI.succ :*: seInt (n-1)
 
 exprToInt :: Expr -> Int
-exprToInt exp = sub 0 exp
+exprToInt exp = destruct 0 $ evalFully $ exp :*: Label "undefinedF" :*: Label "undefinedX"
   where
-    sub x y
-      | x `seq` y `seq` False                     = undefined
-      | evaluable $ y :*: Label "undefined" :*: I = sub (x+1) $ evalFully $ y :*: Label "undefined" :*: I
-      | y == Label "undefined"                    = x - 1
-      | otherwise                                 = error $ "stopped evaluation: " ++ show y
+    destruct x (Label "undefinedX") = x
+    destruct x (_ :*: t) = destruct (x + 1) t
 
 
 selfApp :: Expr
@@ -104,11 +102,11 @@ bor  = S :*: I :*: (K :*: true)
 
 
 {- natural number -}
--- succ x = \a b -> b x
+-- succ n = \f x -> f (n f x)
 succ :: Expr
-succ = comp :*: K :*: (comp :*: (S :*: I) :*: K)
+succ = S :*: (S :*: (K :*: S) :*: K)
 
--- pred x = x zero id
+-- pred x = x zero id TODO very buggy
 pred :: Expr
 pred = comp :*: (fapp :*: I) :*: (fapp :*: K)
 
