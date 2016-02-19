@@ -2,6 +2,7 @@ object SKI {
   sealed abstract class Expr {
     def toString: String
     def toStringParen: String = toString
+    def size: Int = 1 // the number of combinators this term contains
   }
   case object S extends Expr {
     override def toString = "S"
@@ -15,6 +16,7 @@ object SKI {
   case class EApp(e1: Expr, e2: Expr) extends Expr {
     override def toString = e1.toString + " " + e2.toStringParen
     override def toStringParen = "(" + toString + ")"
+    override def size = e1.size + e2.size
   }
   case class EVar(v: String) extends Expr {
     override def toString = v
@@ -47,6 +49,7 @@ object SKI {
   def comp: Expr = EApp(S, EApp(EApp(K, S), K))
   def churchInt(v: Int): Expr = v match {
     case 0 => EApp(S, K)
+    case 1 => I // optimization, S (S (K S) K) (S K) -> I
     case _ if v < 0 => K // undefined
     case _ => EApp(churchSucc, churchInt(v - 1))
   }
