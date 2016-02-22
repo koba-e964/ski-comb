@@ -26,7 +26,10 @@ class SKICompiler {
   case class IRGlobal(name: String) extends IR {
     override def toString = name
   }
-  
+  def compile(e: LambdaTerm): SKI.Expr = {
+    val (ir, env) = lambdaLift(e)
+    convertToSKI(ir, env)
+  }
   def lambdaLift(e: LambdaTerm): (IR, Env) = {
     cnt = 0
     env.clear
@@ -36,9 +39,17 @@ class SKICompiler {
   def convertToSKI(ir: IR, env: Env): SKI.Expr = ir match {
     case IRGlobal(name) =>
       val (u, v) = env(name)
-      convInternal(u, v, env)
+      irToSKI(convInternal(u, v, env))
     case IRApp(i1, i2) => SKI.EApp(convertToSKI(i1, env), convertToSKI(i2, env))
-    case IRVar(x) => scala.sys.error("given ir is not closed!!")
+    case IRVar(x) => scala.sys.error("The given ir is not closed!!")
+  }
+  def irToSKI(ir: IR): SKI.Expr = ir match {
+    case IRGlobal(x) => x match {
+      case "S" => SKI.S
+      case "K" => SKI.K
+      case "I" => SKI.I
+    }
+    case IRApp(t1, t2) => SKI.EApp(irToSKI(t1), irToSKI(t2))
   }
   def llIntern(e: LambdaTerm): IR = e match {
     case LambdaAbst(x, t) => {
@@ -52,8 +63,22 @@ class SKICompiler {
     case LambdaApp(t1, t2) => IRApp(llIntern(t1), llIntern(t2))
     case LambdaVar(x) => IRVar(x)
   }
-  def convInternal(args: List[String], e: IR, env: Env): SKI.Expr = {
-    scala.sys.error("convInternal")
+  def convInternal(args: List[String], e: IR, env: Env): IR = {
+    if (args.isEmpty) e else convInternal(args.init, convInternalOne(args.last, e, env), env)
+  }
+  val s = IRGlobal("S")
+  val k = IRGlobal("K")
+  val i = IRGlobal("I")
+  def convInternalOne(arg: String, e: IR, env: Env): IR = e match {
+    case IRApp(e1, e2) => IRApp(IRApp(s, convInternalOne(arg, e1, env)), convInternalOne(arg, e2, env))
+    case IRVar(x) => if (x == arg) i else IRApp(k, IRVar(x))
+    case IRGlobal(g) => g match {
+      case "S" => IRApp(k, s)
+      case "K" => IRApp(k, k)
+      case "I" => IRApp(k, i)
+      case _ => val (a, t) = env(g)
+      convInternalOne(arg, convInternal(a, t, env), env)
+    }
   }
 }
 
@@ -66,8 +91,8 @@ object SKICompilerTest {
     val xfxx = LambdaAbst("x", LambdaApp(LambdaVar("f"), LambdaApp(vx, vx)))
     val ycomb = LambdaAbst("f", LambdaApp(xfxx, xfxx))
     val sc = new SKICompiler
-    println(sc.lambdaLift(omega))
-    println(sc.lambdaLift(comp))
-    println(sc.lambdaLift(ycomb))
+    println("omega = " + sc.compile(omega))
+    println("comp = " + sc.compile(comp))
+    println("ycomb = " + sc.compile(ycomb))
   }
 }
