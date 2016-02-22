@@ -1,15 +1,6 @@
 import scala.collection.{mutable => mu}
 
-/**
- * This is a class rather than an object, because it has states.
- */
-class SKICompiler {
-  var cnt: Int = 0 // counter
-  val env: MuEnv = mu.Map()
-  private[this] def freshName: String = {
-    cnt += 1
-    "G" + cnt
-  }
+object SKICompiler {
   type Env = Map[String, (List[String], IR)]
   type MuEnv = mu.Map[String, (List[String], IR)]
   sealed abstract class IR {
@@ -31,10 +22,9 @@ class SKICompiler {
     convertToSKI(ir, env)
   }
   def lambdaLift(e: LambdaTerm): (IR, Env) = {
-    cnt = 0
-    env.clear
-    val lli = llIntern(e)
-    (lli, env.toMap)
+    val conv = new LLConverter
+    val lli = conv.llIntern(e)
+    (lli, conv.env.toMap)
   }
   def convertToSKI(ir: IR, env: Env): SKI.Expr = ir match {
     case IRGlobal(name) =>
@@ -51,17 +41,25 @@ class SKICompiler {
     }
     case IRApp(t1, t2) => SKI.EApp(irToSKI(t1), irToSKI(t2))
   }
-  def llIntern(e: LambdaTerm): IR = e match {
-    case LambdaAbst(x, t) => {
-      /* add env */
-      val irt = llIntern(t)
-      val name = freshName
-      val freeVars: List[String] = (t.freeVars - x).toList
-      env += name -> ((freeVars :+ x) -> irt)
-      freeVars.foldLeft(IRGlobal(name): IR)((x, y) => IRApp(x, IRVar(y)))
-    }
-    case LambdaApp(t1, t2) => IRApp(llIntern(t1), llIntern(t2))
-    case LambdaVar(x) => IRVar(x)
+  class LLConverter {
+	  var cnt: Int = 0 // counter
+	  val env: MuEnv = mu.Map()
+	  private[this] def freshName: String = {
+			cnt += 1
+			"G" + cnt
+	  }
+	  def llIntern(e: LambdaTerm): IR = e match {
+	  case LambdaAbst(x, t) => {
+		  /* add env */
+		  val irt = llIntern(t)
+		  val name = freshName
+		  val freeVars: List[String] = (t.freeVars - x).toList
+		  env += name -> ((freeVars :+ x) -> irt)
+		  freeVars.foldLeft(IRGlobal(name): IR)((x, y) => IRApp(x, IRVar(y)))
+	  }
+	  case LambdaApp(t1, t2) => IRApp(llIntern(t1), llIntern(t2))
+	  case LambdaVar(x) => IRVar(x)
+	  }
   }
   def convInternal(args: List[String], e: IR, env: Env): IR = {
     if (args.isEmpty) e else convInternal(args.init, convInternalOne(args.last, e, env), env)
@@ -83,6 +81,7 @@ class SKICompiler {
 }
 
 object SKICompilerTest {
+  import SKICompiler._
   def main(args: Array[String]) {
     val omega = LambdaAbst("x", LambdaApp(LambdaVar("x"), LambdaVar("x")))
     val comp = LambdaAbst("f", LambdaAbst("g", LambdaAbst("x",
@@ -90,9 +89,8 @@ object SKICompilerTest {
     val vx = LambdaVar("x")
     val xfxx = LambdaAbst("x", LambdaApp(LambdaVar("f"), LambdaApp(vx, vx)))
     val ycomb = LambdaAbst("f", LambdaApp(xfxx, xfxx))
-    val sc = new SKICompiler
-    println("omega = " + sc.compile(omega))
-    println("comp = " + sc.compile(comp))
-    println("ycomb = " + sc.compile(ycomb))
+    println("omega = " + compile(omega))
+    println("comp = " + compile(comp))
+    println("ycomb = " + compile(ycomb))
   }
 }
