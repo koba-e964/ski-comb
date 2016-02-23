@@ -2,7 +2,6 @@ import scala.collection.{mutable => mu}
 
 object SKICompiler {
   type Env = Map[String, (List[String], IR)]
-  type MuEnv = mu.Map[String, (List[String], IR)]
   sealed abstract class IR {
     def toString: String
     def toStringParen: String = toString
@@ -20,6 +19,7 @@ object SKICompiler {
   case class IRGlobal(name: String) extends IR {
     override def toString = name
   }
+  /* TODO impose e is closed, and bound variables are distinct */
   def compile(e: LambdaTerm): SKI.Expr = {
     val (ir, env) = lambdaLift(e)
     convertToSKI(ir, env)
@@ -29,12 +29,9 @@ object SKICompiler {
     val lli = conv.llIntern(e)
     (lli, conv.env.toMap)
   }
-  def convertToSKI(ir: IR, env: Env): SKI.Expr = ir match {
-    case IRGlobal(name) =>
-      val (u, v) = env(name)
-      irToSKI(convInternal(u, v, env))
-    case IRApp(i1, i2) => SKI.EApp(convertToSKI(i1, env), convertToSKI(i2, env))
-    case IRVar(x) => scala.sys.error("The given ir is not closed!!")
+  def convertToSKI(ir: IR, env: Env): SKI.Expr = {
+    val conv = new IRConverter(env)
+    irToSKI(conv.convInternal(List(), ir))
   }
   def irToSKI(ir: IR): SKI.Expr = ir match {
     case IRGlobal(x) => x match {
@@ -43,8 +40,10 @@ object SKICompiler {
       case "I" => SKI.I
     }
     case IRApp(t1, t2) => SKI.EApp(irToSKI(t1), irToSKI(t2))
+    case IRVar(_) => scala.sys.error("unexpected var, the given ir is not closed")
   }
   class LLConverter {
+    type MuEnv = mu.Map[String, (List[String], IR)]
 	  var cnt: Int = 0 // counter
 	  val env: MuEnv = mu.Map()
 	  private[this] def freshName: String = {
@@ -64,36 +63,39 @@ object SKICompiler {
 	  case LambdaVar(x) => IRVar(x)
 	  }
   }
-  def convInternal(args: List[String], e: IR, env: Env): IR = {
-    if (args.isEmpty) e else convInternal(args.init, convInternalOne(args.last, e, env), env)
-  }
-  val s = IRGlobal("S")
-  val k = IRGlobal("K")
-  val i = IRGlobal("I")
-  def convInternalOne(arg: String, e: IR, env: Env): IR = e match {
-    case _ if (e.freeVars(arg) == false) => IRApp(k, elimGlobal(e, env)) // optimization
-    case IRApp(e1, IRVar(x)) if (x == arg && e1.freeVars(arg) == false) =>
-      elimGlobal(e1, env) // optimization, not necessary
-    case IRApp(e1, e2) => IRApp(IRApp(s, convInternalOne(arg, e1, env)), convInternalOne(arg, e2, env))
-    case IRVar(x) => if (x == arg) i else IRApp(k, IRVar(x))
-    case IRGlobal(g) => g match {
-      case "S" => IRApp(k, s)
-      case "K" => IRApp(k, k)
-      case "I" => IRApp(k, i)
-      case _ => val (a, t) = env(g)
-      convInternalOne(arg, convInternal(a, t, env), env)
-    }
-  }
-  def elimGlobal(e: IR, env: Env): IR = e match {
-    case IRGlobal(g) => g match {
-      case "S" => e
-      case "K" => e
-      case "I" => e
-      case _ => val (a, t) = env(g)
-      convInternal(a, t, env)
-    }
-    case IRApp(t1, t2) => IRApp(elimGlobal(t1, env), elimGlobal(t2, env))
-    case _ => e
+  /* TODO memoization */
+  class IRConverter(env: Env) {
+	  def convInternal(args: List[String], e: IR): IR = {
+			val et = elimGlobal(e)
+			if (args.isEmpty) et else convInternal(args.init, convInternalOne(args.last, et))
+	  }
+	  val s = IRGlobal("S")
+	  val k = IRGlobal("K")
+	  val i = IRGlobal("I")
+	  def convInternalOne(arg: String, e: IR): IR = e match {
+  	  case _ if (e.freeVars(arg) == false) => IRApp(k, elimGlobal(e)) // optimization
+  	  case IRApp(e1, IRVar(x)) if (x == arg && e1.freeVars(arg) == false) =>
+  	  elimGlobal(e1) // optimization, not necessary
+  	  case IRApp(e1, e2) => IRApp(IRApp(s, convInternalOne(arg, e1)), convInternalOne(arg, e2))
+  	  case IRVar(x) => if (x == arg) i else IRApp(k, IRVar(x))
+  	  case IRGlobal(g) => g match {
+    	  case "S" => IRApp(k, s)
+    	  case "K" => IRApp(k, k)
+    	  case "I" => IRApp(k, i)
+    	  case _ => scala.sys.error("global combinator, which is not expected")
+  		}
+	  }
+	  def elimGlobal(e: IR): IR = e match {
+  	  case IRGlobal(g) => g match {
+    	  case "S" => e
+	      case "K" => e
+	      case "I" => e
+	      case _ => val (a, t) = env(g)
+	      convInternal(a, t)
+	    }
+      case IRApp(t1, t2) => IRApp(elimGlobal(t1), elimGlobal(t2))
+      case _ => e
+	  }
   }
 }
 
