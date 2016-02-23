@@ -42,7 +42,7 @@ object SKICompiler {
     case IRApp(t1, t2) => SKI.EApp(irToSKI(t1), irToSKI(t2))
     case IRVar(_) => scala.sys.error("unexpected var, the given ir is not closed")
   }
-  class LLConverter {
+  private[this] final class LLConverter {
     type MuEnv = mu.Map[String, (List[String], IR)]
 	  var cnt: Int = 0 // counter
 	  val env: MuEnv = mu.Map()
@@ -64,7 +64,7 @@ object SKICompiler {
 	  }
   }
   /* TODO memoization */
-  class IRConverter(env: Env) {
+  private[this] class IRConverter(env: Env) {
 	  def convInternal(args: List[String], e: IR): IR = {
 			val et = elimGlobal(e)
 			if (args.isEmpty) et else convInternal(args.init, convInternalOne(args.last, et))
@@ -72,10 +72,10 @@ object SKICompiler {
 	  val s = IRGlobal("S")
 	  val k = IRGlobal("K")
 	  val i = IRGlobal("I")
-	  def convInternalOne(arg: String, e: IR): IR = e match {
-  	  case _ if (e.freeVars(arg) == false) => IRApp(k, elimGlobal(e)) // optimization
-  	  case IRApp(e1, IRVar(x)) if (x == arg && e1.freeVars(arg) == false) =>
-  	  elimGlobal(e1) // optimization, not necessary
+    def convInternalOne(arg: String, e: IR): IR = e match {
+      case _ if (e.freeVars(arg) == false) => IRApp(k, e) // optimization
+      case IRApp(e1, IRVar(x)) if (x == arg && e1.freeVars(arg) == false) =>
+      e1 // optimization, not necessary
   	  case IRApp(e1, e2) => IRApp(IRApp(s, convInternalOne(arg, e1)), convInternalOne(arg, e2))
   	  case IRVar(x) => if (x == arg) i else IRApp(k, IRVar(x))
   	  case IRGlobal(g) => g match {
