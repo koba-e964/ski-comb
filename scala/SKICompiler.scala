@@ -38,6 +38,7 @@ object SKICompiler {
       case "S" => SKI.S
       case "K" => SKI.K
       case "I" => SKI.I
+      case _ => scala.sys.error("unexpected combinator in irToSKI")
     }
     case IRApp(t1, t2) => SKI.EApp(irToSKI(t1), irToSKI(t2))
     case IRVar(_) => scala.sys.error("unexpected var, the given ir is not closed")
