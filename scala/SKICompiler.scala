@@ -6,13 +6,16 @@ object SKICompiler {
   sealed abstract class IR {
     def toString: String
     def toStringParen: String = toString
+    def freeVars: Set[String] = Set()
   }
   case class IRApp(e1: IR, e2: IR) extends IR {
     override def toString = e1.toString + " " + e2.toStringParen
     override def toStringParen = "(" + toString + ")"
+    override def freeVars = e1.freeVars ++ e2.freeVars
   }
   case class IRVar(name: String) extends IR {
     override def toString = name
+    override def freeVars = Set(name)
   }
   case class IRGlobal(name: String) extends IR {
     override def toString = name
@@ -68,6 +71,9 @@ object SKICompiler {
   val k = IRGlobal("K")
   val i = IRGlobal("I")
   def convInternalOne(arg: String, e: IR, env: Env): IR = e match {
+    case _ if (e.freeVars(arg) == false) => IRApp(k, elimGlobal(e, env)) // optimization
+    case IRApp(e1, IRVar(x)) if (x == arg && e1.freeVars(arg) == false) =>
+      elimGlobal(e1, env) // optimization, not necessary
     case IRApp(e1, e2) => IRApp(IRApp(s, convInternalOne(arg, e1, env)), convInternalOne(arg, e2, env))
     case IRVar(x) => if (x == arg) i else IRApp(k, IRVar(x))
     case IRGlobal(g) => g match {
@@ -77,6 +83,17 @@ object SKICompiler {
       case _ => val (a, t) = env(g)
       convInternalOne(arg, convInternal(a, t, env), env)
     }
+  }
+  def elimGlobal(e: IR, env: Env): IR = e match {
+    case IRGlobal(g) => g match {
+      case "S" => e
+      case "K" => e
+      case "I" => e
+      case _ => val (a, t) = env(g)
+      convInternal(a, t, env)
+    }
+    case IRApp(t1, t2) => IRApp(elimGlobal(t1, env), elimGlobal(t2, env))
+    case _ => e
   }
 }
 
