@@ -64,8 +64,8 @@ object SKICompiler {
       case LambdaVar(x) => IRVar(x)
     }
   }
-  /* TODO memoization */
   private[this] class IRConverter(env: Env) {
+    private[this] val memo: mu.Map[String, IR] = mu.Map() // memoization
     def convInternal(args: List[String], e: IR): IR = {
       val et = elimGlobal(e)
       if (args.isEmpty) et else convInternal(args.init, convInternalOne(args.last, et))
@@ -91,8 +91,12 @@ object SKICompiler {
         case "S" => e
         case "K" => e
         case "I" => e
-        case _ => val (a, t) = env(g)
-        convInternal(a, t)
+        case _ =>
+          if (!(memo contains g)) {
+            val (a, t) = env(g)
+            memo(g) = convInternal(a, t)
+          }
+          memo(g)
       }
       case IRApp(t1, t2) => IRApp(elimGlobal(t1), elimGlobal(t2))
       case _ => e
