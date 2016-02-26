@@ -9,11 +9,6 @@ import scala.util.parsing.input.CharArrayReader.EofCh
  * <AtomicExpr> ::= (<Expr>) | <Var>
  * 
  */
-class LambdaLexer extends StdLexical with ImplicitConversions {
-  case object LAMBDA extends Token {
-    override def chars = scala.sys.error("LAMBDA")
-  }
-}
 
 class LambdaParser extends JavaTokenParsers {
   def expr: Parser[LambdaTerm] 
@@ -35,10 +30,21 @@ class LambdaParser extends JavaTokenParsers {
 }
 
 object LambdaParserTest {
+  def test(s: String, t: LambdaTerm) {
+    val lp = new LambdaParser
+    val term = lp.parse(s)
+    if (t == term) {
+      println("[ok] " + t)
+    } else {
+      println("[err] " + t + " but got: " + term)
+    }
+    
+  }
   def main(args: Array[String]) {
-    val lex = new LambdaLexer
-    val scn = new lex.Scanner("""
-      \x. x x
-      """)
+    val vx = LambdaVar("x")
+    val vy = LambdaVar("y")
+    val vid = LambdaVar("id")
+    test("\\x. x y", LambdaAbst("x", LambdaApp(vx, vy)))
+    test("(\\id. id id)(\\x. x)", LambdaApp(LambdaAbst("id", LambdaApp(vid, vid)), LambdaAbst("x", vx)))
   }
 }
