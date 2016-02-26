@@ -1,23 +1,19 @@
-import scala.util.parsing.combinator._
-import scala.util.parsing.combinator.syntactical._
-import scala.util.parsing.combinator.lexical._
-import scala.util.parsing.input.CharArrayReader.EofCh
+import scala.util.parsing.combinator.RegexParsers
 
 /**
- * <Expr> ::= \<Var>. <Expr> | <AppExpr>
- * <AppExpr> ::= <AppExpr> <AtomicExpr> | <AtomicExpr>
- * <AtomicExpr> ::= (<Expr>) | <Var>
- * 
+ * <Expr> ::= \<Var>. <Expr> | <appExpr>
+ * <appExpr> ::= <appExpr> <atomicExpr> | <atomicExpr>
+ * <atomicExpr> ::= (<Expr>) | <Var>
  */
 
-class LambdaParser extends JavaTokenParsers {
+class LambdaParser extends RegexParsers {
   def expr: Parser[LambdaTerm] 
-    = appexpr ^^ {x => x reduceLeft ((u: LambdaTerm, v: LambdaTerm) => LambdaApp(u, v)) } |
+    = appExpr ^^ {ls => ls reduceLeft ((u, v) => LambdaApp(u, v)) } |
      ("\\" ~ vari ~ "." ~ expr) ^^ { case _ ~ x ~ _ ~ e => LambdaAbst(x, e) }
-  def appexpr: Parser[List[LambdaTerm]]
-    = (atomicexpr ~ appexpr) ^^ { case x ~ y => x :: y } |
-     atomicexpr ^^ { x => List(x) }
-  def atomicexpr: Parser[LambdaTerm]
+  def appExpr: Parser[List[LambdaTerm]]
+    = (atomicExpr ~ appExpr) ^^ { case x ~ y => x :: y } |
+     atomicExpr ^^ { x => List(x) }
+  def atomicExpr: Parser[LambdaTerm]
     = vari ^^ { x => LambdaVar(x) } |
      ("(" ~ expr ~ ")") ^^ { case _ ~ e ~ _ => e }
   def vari: Parser[String] = """[a-zA-Z_]\w*""".r
