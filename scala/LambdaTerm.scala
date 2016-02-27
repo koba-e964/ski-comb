@@ -25,7 +25,7 @@ case class LambdaVar(v: String) extends LambdaTerm {
  * TODO Move main function to test files
  */
 
-object Main {
+object LambdaTermTest {
   def main(args: Array[String]) {
     val omega = LambdaAbst("x", LambdaApp(LambdaVar("x"), LambdaVar("x")))
     println(omega)
